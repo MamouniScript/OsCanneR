@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
-import 'package:flutter_langdetect/flutter_langdetect.dart' as langdetect;
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class Recognizerscreen extends StatefulWidget {
   final File image;
@@ -14,65 +13,48 @@ class Recognizerscreen extends StatefulWidget {
 }
 
 class _RecognizerscreenState extends State<Recognizerscreen> {
-  String _results = "";
+  late TextRecognizer textRecognizer;
+  String results = "";
   bool _scanning = true;
 
   @override
   void initState() {
     super.initState();
-    _initializeLangDetect();
-    _performOCR();
+    textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    doTextRecognition();
   }
 
-  Future<void> _initializeLangDetect() async {
-    try {
-      await langdetect.initLangDetect();
-    } catch (e) {
-      print("Error initializing language detection: $e");
+  @override
+  void dispose() {
+    // Dispose of the text recognizer
+    textRecognizer.close();
+    super.dispose();
+  }
+
+  doTextRecognition() async {
+    InputImage inputImage = InputImage.fromFile(widget.image);
+    final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+
+    setState(() {
+      results = recognizedText.text;
+      _scanning = false;
+    });
+
+    // Printing details for debugging purposes
+    print(results);
+    for (TextBlock block in recognizedText.blocks) {
+      final Rect rect = block.boundingBox;
+      final List<Point<int>> cornerPoints = block.cornerPoints;
+      final String text = block.text;
+      final List<String> languages = block.recognizedLanguages;
+
+      for (TextLine line in block.lines) {
+        // Iterate over lines if needed
+        for (TextElement element in line.elements) {
+          // Iterate over elements if needed
+        }
+      }
     }
-  }
-
-  Future<void> _performOCR() async {
-    try {
-      // Perform OCR
-      String text = await FlutterTesseractOcr.extractText(
-        widget.image.path,
-        language: await _detectLanguage(widget.image),
-      );
-
-      setState(() {
-        _results = text;
-        _scanning = false;
-      });
-    } catch (e) {
-      print("Error during OCR: $e");
-      setState(() {
-        _results = "Error during OCR: $e";
-        _scanning = false;
-      });
-    }
-  }
-
-  Future<String> _detectLanguage(File image) async {
-    try {
-      // Detect language
-      String languageCode = langdetect.detect(await _getImageBase64(image));
-      print(languageCode);
-
-      // Return the detected language code
-      return languageCode;
-    } catch (e) {
-      print("Error during language detection: $e");
-      return "eng"; // Default to English if language detection fails
-    }
-  }
-
-  Future<String> _getImageBase64(File image) async {
-    // Load the image as bytes
-    List<int> imageBytes = await image.readAsBytes();
-
-    // Convert bytes to a base64 string
-    return base64Encode(imageBytes);
   }
 
   @override
@@ -80,7 +62,7 @@ class _RecognizerscreenState extends State<Recognizerscreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blueAccent,
-        title: Text('Text Extraction'),
+        title: Text('Extraction'),
       ),
       body: SingleChildScrollView(
         child: Container(
@@ -100,10 +82,7 @@ class _RecognizerscreenState extends State<Recognizerscreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Extracted Text',
-                            style: TextStyle(color: Colors.white),
-                          ),
+                          Text('Results', style: TextStyle(color: Colors.white)),
                           IconButton(
                             icon: Icon(Icons.copy, color: Colors.white),
                             onPressed: () {
@@ -119,11 +98,11 @@ class _RecognizerscreenState extends State<Recognizerscreen> {
                           ? Center(child: CircularProgressIndicator())
                           : Center(
                         child: Text(
-                          _results,
+                          results,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.normal,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
@@ -138,3 +117,4 @@ class _RecognizerscreenState extends State<Recognizerscreen> {
     );
   }
 }
+
